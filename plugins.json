@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-08T18:15:52Z",
+  "updatedAt": "2026-02-08T20:55:41Z",
   "plugins": [
     {
       "id": "com.simplyterm.hello-world",
       "name": "Hello World",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "apiVersion": "1.0.0",
       "description": "A simple example plugin that greets you on load, adds a status bar item and session counter",
       "author": "SimplyTerm",
@@ -20,11 +20,12 @@
       ],
       "permissions": [
         "ui_notifications",
-        "ui_commands"
+        "ui_commands",
+        "sessions_read"
       ],
-      "downloadUrl": "https://github.com/arediss/simplyterm-plugin-hello/releases/download/v1.1.0/plugin.zip",
-      "checksum": null,
-      "downloads": 8
+      "downloadUrl": "https://github.com/arediss/simplyterm-plugin-hello/releases/download/v1.1.1/plugin.zip",
+      "checksum": "f97095e119dfe5acf07090e52a23f9668204f7a05d6357382f8ae4853ddcce98",
+      "downloads": 12
     }
   ]
 }
