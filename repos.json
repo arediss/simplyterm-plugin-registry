@@ -1,7 +1,8 @@
 {
   "plugins": [
     {
-      "repository": "arediss/simplyterm-plugin-hello"
+      "repository": "arediss/simplyterm-plugin-hello",
+      "approved_permissions": ["ui_notifications"]
     }
   ]
 }

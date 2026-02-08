@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   update:
@@ -29,6 +30,7 @@ jobs:
           REPOS_FILE="repos.json"
           OUTPUT_FILE="plugins.json"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SECURITY_WARNINGS=""
 
           echo "=== SimplyTerm Plugin Registry Builder ==="
           echo "Timestamp: $TIMESTAMP"
@@ -37,6 +39,7 @@ jobs:
           REPOS=$(jq -r '.plugins[].repository' "$REPOS_FILE")
           PLUGIN_ARRAY="[]"
           REMOVED_REPOS=()
+          CHANGES_SUMMARY=""
 
           for REPO in $REPOS; do
             echo ""
@@ -83,6 +86,17 @@ jobs:
 
             echo "  Plugin: $PLUGIN_NAME v$PLUGIN_VERSION ($PLUGIN_ID)"
 
+            # ── Security: check permissions against approved list ──
+            APPROVED_PERMS=$(jq -r --arg repo "$REPO" '.plugins[] | select(.repository == $repo) | .approved_permissions // [] | sort | join(",")' "$REPOS_FILE")
+            CURRENT_PERMS=$(echo "$PERMISSIONS" | jq -r 'sort | join(",")')
+
+            if [ -n "$APPROVED_PERMS" ] && [ "$CURRENT_PERMS" != "$APPROVED_PERMS" ]; then
+              echo "  ⚠ SECURITY: Permissions changed!"
+              echo "    Approved: $APPROVED_PERMS"
+              echo "    Current:  $CURRENT_PERMS"
+              SECURITY_WARNINGS="${SECURITY_WARNINGS}\n⚠ **${PLUGIN_NAME}** (\`${REPO}\`): permissions changed!\n  - Approved: \`${APPROVED_PERMS}\`\n  - Current: \`${CURRENT_PERMS}\`\n"
+            fi
+
             # Fetch latest release
             RELEASE=$(gh api "repos/$REPO/releases/latest" 2>/dev/null) || {
               echo "  SKIP: No releases found"
@@ -91,6 +105,12 @@ jobs:
 
             RELEASE_TAG=$(echo "$RELEASE" | jq -r '.tag_name')
             echo "  Latest release: $RELEASE_TAG"
+
+            # Check if version changed compared to current plugins.json
+            PREV_VERSION=$(jq -r --arg id "$PLUGIN_ID" '.plugins[]? | select(.id == $id) | .version // "none"' "$OUTPUT_FILE" 2>/dev/null || echo "none")
+            if [ "$PREV_VERSION" != "$PLUGIN_VERSION" ]; then
+              CHANGES_SUMMARY="${CHANGES_SUMMARY}\n- **${PLUGIN_NAME}**: \`${PREV_VERSION}\` → \`${PLUGIN_VERSION}\`"
+            fi
 
             # Find plugin.zip asset in the release
             DOWNLOAD_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name == "plugin.zip") | .browser_download_url' 2>/dev/null)
@@ -106,6 +126,18 @@ jobs:
             fi
 
             echo "  Download URL: $DOWNLOAD_URL"
+
+            # ── Download zip and compute SHA256 checksum ──
+            TMPZIP=$(mktemp /tmp/plugin-XXXXXX.zip)
+            if curl -sL -o "$TMPZIP" "$DOWNLOAD_URL"; then
+              CHECKSUM=$(sha256sum "$TMPZIP" | awk '{print $1}')
+              echo "  Checksum (SHA256): $CHECKSUM"
+              rm -f "$TMPZIP"
+            else
+              echo "  WARNING: Failed to download zip for checksum"
+              CHECKSUM=""
+              rm -f "$TMPZIP"
+            fi
 
             # Get download count (sum of all zip assets across all releases)
             DOWNLOADS=$(gh api "repos/$REPO/releases" --jq '[.[].assets[] | select(.name | endswith(".zip")) | .download_count] | add // 0' 2>/dev/null)
@@ -128,6 +160,7 @@ jobs:
               --argjson keywords "$KEYWORDS" \
               --argjson permissions "$PERMISSIONS" \
               --arg downloadUrl "$DOWNLOAD_URL" \
+              --arg checksum "$CHECKSUM" \
               --argjson downloads "${DOWNLOADS:-0}" \
               '{
                 id: $id,
@@ -143,7 +176,7 @@ jobs:
                 keywords: $keywords,
                 permissions: $permissions,
                 downloadUrl: $downloadUrl,
-                checksum: null,
+                checksum: (if $checksum == "" then null else $checksum end),
                 downloads: $downloads
               }')
 
@@ -179,11 +212,49 @@ jobs:
 
           cat "$OUTPUT_FILE"
 
-      - name: Commit & push changes
+          # Save summaries for PR body
+          echo "$CHANGES_SUMMARY" > /tmp/changes_summary.txt
+          echo "$SECURITY_WARNINGS" > /tmp/security_warnings.txt
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if there are any changes
           git add plugins.json repos.json
-          git diff --cached --quiet && echo "No changes" && exit 0
-          git commit -m "chore: auto-update plugin registry"
-          git push
+          git diff --cached --quiet && echo "No changes detected" && exit 0
+
+          # Create a branch for the PR
+          BRANCH="registry-update/$(date -u +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          git commit -m "chore: update plugin registry"
+          git push origin "$BRANCH"
+
+          # Build PR body
+          CHANGES=$(cat /tmp/changes_summary.txt)
+          WARNINGS=$(cat /tmp/security_warnings.txt)
+
+          PR_BODY="## Registry Update\n\nAutomated plugin registry update.\n"
+
+          if [ -n "$CHANGES" ]; then
+            PR_BODY="${PR_BODY}\n### Changes\n${CHANGES}\n"
+          else
+            PR_BODY="${PR_BODY}\n### Changes\nNo version changes detected.\n"
+          fi
+
+          if [ -n "$WARNINGS" ]; then
+            PR_BODY="${PR_BODY}\n### ⚠ Security Warnings\n${WARNINGS}\n"
+            PR_BODY="${PR_BODY}\n> **Review required**: One or more plugins have changed their permissions since approval.\n"
+          fi
+
+          PR_BODY="${PR_BODY}\n---\n*Review the \`plugins.json\` diff before merging.*"
+
+          # Create the PR
+          echo -e "$PR_BODY" | gh pr create \
+            --title "chore: registry update $(date -u +%Y-%m-%d)" \
+            --body-file /dev/stdin \
+            --base main \
+            --head "$BRANCH"
