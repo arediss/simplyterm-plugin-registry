@@ -94,7 +94,7 @@ jobs:
               echo "  ⚠ SECURITY: Permissions changed!"
               echo "    Approved: $APPROVED_PERMS"
               echo "    Current:  $CURRENT_PERMS"
-              SECURITY_WARNINGS="${SECURITY_WARNINGS}\n⚠ **${PLUGIN_NAME}** (\`${REPO}\`): permissions changed!\n  - Approved: \`${APPROVED_PERMS}\`\n  - Current: \`${CURRENT_PERMS}\`\n"
+              SECURITY_WARNINGS="${SECURITY_WARNINGS}\n⚠ **${PLUGIN_NAME}** ([${REPO}](https://github.com/${REPO})): permissions changed!\n  - Approved: \`${APPROVED_PERMS}\`\n  - Current: \`${CURRENT_PERMS}\`\n"
             fi
 
             # Fetch latest release
@@ -109,7 +109,7 @@ jobs:
             # Check if version changed compared to current plugins.json
             PREV_VERSION=$(jq -r --arg id "$PLUGIN_ID" '.plugins[]? | select(.id == $id) | .version // "none"' "$OUTPUT_FILE" 2>/dev/null || echo "none")
             if [ "$PREV_VERSION" != "$PLUGIN_VERSION" ]; then
-              CHANGES_SUMMARY="${CHANGES_SUMMARY}\n- **${PLUGIN_NAME}**: \`${PREV_VERSION}\` → \`${PLUGIN_VERSION}\`"
+              CHANGES_SUMMARY="${CHANGES_SUMMARY}\n- **${PLUGIN_NAME}**: \`${PREV_VERSION}\` → \`${PLUGIN_VERSION}\` ([repo](https://github.com/${REPO}) | [release](https://github.com/${REPO}/releases/tag/${RELEASE_TAG}))"
             fi
 
             # Find plugin.zip asset in the release
