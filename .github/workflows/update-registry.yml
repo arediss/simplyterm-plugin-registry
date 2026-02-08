@@ -1,0 +1,189 @@
+name: Update Plugin Registry
+
+on:
+  # Daily at 6:00 UTC
+  schedule:
+    - cron: "0 6 * * *"
+  # On push to repos.json (new plugin added/removed)
+  push:
+    branches: [main]
+    paths: [repos.json]
+  # Manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate plugins.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          REPOS_FILE="repos.json"
+          OUTPUT_FILE="plugins.json"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo "=== SimplyTerm Plugin Registry Builder ==="
+          echo "Timestamp: $TIMESTAMP"
+
+          # Read repository list
+          REPOS=$(jq -r '.plugins[].repository' "$REPOS_FILE")
+          PLUGIN_ARRAY="[]"
+          REMOVED_REPOS=()
+
+          for REPO in $REPOS; do
+            echo ""
+            echo "--- Processing: $REPO ---"
+
+            # Check if repo exists and is not archived
+            REPO_INFO=$(gh api "repos/$REPO" 2>/dev/null) || {
+              echo "  SKIP: Repository not found (404) - marking for removal"
+              REMOVED_REPOS+=("$REPO")
+              continue
+            }
+
+            IS_ARCHIVED=$(echo "$REPO_INFO" | jq -r '.archived')
+            if [ "$IS_ARCHIVED" = "true" ]; then
+              echo "  SKIP: Repository is archived - marking for removal"
+              REMOVED_REPOS+=("$REPO")
+              continue
+            fi
+
+            # Fetch manifest.json from default branch
+            MANIFEST=$(gh api "repos/$REPO/contents/manifest.json" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null) || {
+              echo "  SKIP: No manifest.json found in repository root"
+              continue
+            }
+
+            echo "  Found manifest.json"
+
+            # Extract fields from manifest
+            PLUGIN_ID=$(echo "$MANIFEST" | jq -r '.id // empty')
+            PLUGIN_NAME=$(echo "$MANIFEST" | jq -r '.name // empty')
+            PLUGIN_VERSION=$(echo "$MANIFEST" | jq -r '.version // empty')
+            API_VERSION=$(echo "$MANIFEST" | jq -r '.api_version // "1.0.0"')
+            DESCRIPTION=$(echo "$MANIFEST" | jq -r '.description // ""')
+            AUTHOR=$(echo "$MANIFEST" | jq -r '.author // ""')
+            LICENSE=$(echo "$MANIFEST" | jq -r '.license // null')
+            CATEGORY=$(echo "$MANIFEST" | jq -r '.category // null')
+            KEYWORDS=$(echo "$MANIFEST" | jq -c '.keywords // []')
+            PERMISSIONS=$(echo "$MANIFEST" | jq -c '.permissions // []')
+
+            if [ -z "$PLUGIN_ID" ] || [ -z "$PLUGIN_NAME" ] || [ -z "$PLUGIN_VERSION" ]; then
+              echo "  SKIP: manifest.json missing required fields (id, name, or version)"
+              continue
+            fi
+
+            echo "  Plugin: $PLUGIN_NAME v$PLUGIN_VERSION ($PLUGIN_ID)"
+
+            # Fetch latest release
+            RELEASE=$(gh api "repos/$REPO/releases/latest" 2>/dev/null) || {
+              echo "  SKIP: No releases found"
+              continue
+            }
+
+            RELEASE_TAG=$(echo "$RELEASE" | jq -r '.tag_name')
+            echo "  Latest release: $RELEASE_TAG"
+
+            # Find plugin.zip asset in the release
+            DOWNLOAD_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name == "plugin.zip") | .browser_download_url' 2>/dev/null)
+
+            if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+              # Fallback: look for any .zip asset
+              DOWNLOAD_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' 2>/dev/null | head -1)
+            fi
+
+            if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" = "null" ]; then
+              echo "  SKIP: No .zip asset found in latest release"
+              continue
+            fi
+
+            echo "  Download URL: $DOWNLOAD_URL"
+
+            # Get download count (sum of all zip assets across all releases)
+            DOWNLOADS=$(gh api "repos/$REPO/releases" --jq '[.[].assets[] | select(.name | endswith(".zip")) | .download_count] | add // 0' 2>/dev/null)
+
+            HOMEPAGE="https://github.com/$REPO"
+            REPOSITORY="https://github.com/$REPO"
+
+            # Build the plugin entry
+            ENTRY=$(jq -n \
+              --arg id "$PLUGIN_ID" \
+              --arg name "$PLUGIN_NAME" \
+              --arg version "$PLUGIN_VERSION" \
+              --arg apiVersion "$API_VERSION" \
+              --arg description "$DESCRIPTION" \
+              --arg author "$AUTHOR" \
+              --arg homepage "$HOMEPAGE" \
+              --arg repository "$REPOSITORY" \
+              --arg license "$LICENSE" \
+              --arg category "$CATEGORY" \
+              --argjson keywords "$KEYWORDS" \
+              --argjson permissions "$PERMISSIONS" \
+              --arg downloadUrl "$DOWNLOAD_URL" \
+              --argjson downloads "${DOWNLOADS:-0}" \
+              '{
+                id: $id,
+                name: $name,
+                version: $version,
+                apiVersion: $apiVersion,
+                description: $description,
+                author: $author,
+                homepage: $homepage,
+                repository: $repository,
+                license: (if $license == "null" then null else $license end),
+                category: (if $category == "null" then null else $category end),
+                keywords: $keywords,
+                permissions: $permissions,
+                downloadUrl: $downloadUrl,
+                checksum: null,
+                downloads: $downloads
+              }')
+
+            PLUGIN_ARRAY=$(echo "$PLUGIN_ARRAY" | jq --argjson entry "$ENTRY" '. + [$entry]')
+            echo "  OK - Added to registry"
+          done
+
+          # Remove archived/deleted repos from repos.json
+          if [ ${#REMOVED_REPOS[@]} -gt 0 ]; then
+            echo ""
+            echo "=== Cleaning up repos.json ==="
+            REPOS_CONTENT=$(cat "$REPOS_FILE")
+            for REMOVED in "${REMOVED_REPOS[@]}"; do
+              echo "  Removing: $REMOVED"
+              REPOS_CONTENT=$(echo "$REPOS_CONTENT" | jq --arg repo "$REMOVED" '.plugins = [.plugins[] | select(.repository != $repo)]')
+            done
+            echo "$REPOS_CONTENT" | jq '.' > "$REPOS_FILE"
+          fi
+
+          # Build final plugins.json
+          PLUGIN_COUNT=$(echo "$PLUGIN_ARRAY" | jq 'length')
+          echo ""
+          echo "=== Result: $PLUGIN_COUNT plugin(s) ==="
+
+          jq -n \
+            --argjson plugins "$PLUGIN_ARRAY" \
+            --arg updatedAt "$TIMESTAMP" \
+            '{
+              schemaVersion: 1,
+              updatedAt: $updatedAt,
+              plugins: $plugins
+            }' > "$OUTPUT_FILE"
+
+          cat "$OUTPUT_FILE"
+
+      - name: Commit & push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add plugins.json repos.json
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "chore: auto-update plugin registry"
+          git push

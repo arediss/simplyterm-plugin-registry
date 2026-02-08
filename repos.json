@@ -1,0 +1,7 @@
+{
+  "plugins": [
+    {
+      "repository": "arediss/simplyterm-plugin-hello"
+    }
+  ]
+}
