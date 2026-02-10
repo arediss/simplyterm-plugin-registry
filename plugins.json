@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-09T06:27:26Z",
+  "updatedAt": "2026-02-10T06:27:26Z",
   "plugins": [
     {
       "id": "com.simplyterm.hello-world",
@@ -25,7 +25,7 @@
       ],
       "downloadUrl": "https://github.com/arediss/simplyterm-plugin-hello/releases/download/v1.1.1/plugin.zip",
       "checksum": "f97095e119dfe5acf07090e52a23f9668204f7a05d6357382f8ae4853ddcce98",
-      "downloads": 17
+      "downloads": 19
     }
   ]
 }
