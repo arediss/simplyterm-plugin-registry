@@ -233,6 +233,14 @@ jobs:
           git commit -m "chore: update plugin registry"
           git push origin "$BRANCH"
 
+          # Close any existing registry-update PRs (superseded by this one)
+          EXISTING_PRS=$(gh pr list --state open --json number,headRefName \
+            --jq '.[] | select(.headRefName | startswith("registry-update/")) | .number' 2>/dev/null || true)
+          for PR_NUM in $EXISTING_PRS; do
+            echo "Closing superseded PR #$PR_NUM"
+            gh pr close "$PR_NUM" --comment "Superseded by a newer registry update." --delete-branch || true
+          done
+
           # Build PR body
           CHANGES=$(cat /tmp/changes_summary.txt)
           WARNINGS=$(cat /tmp/security_warnings.txt)
