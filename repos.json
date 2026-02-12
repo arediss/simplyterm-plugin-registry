@@ -3,6 +3,18 @@
     {
       "repository": "arediss/simplyterm-plugin-hello",
       "approved_permissions": ["ui_notifications"]
+    },
+    {
+      "repository": "arediss/simplyterm-tags",
+      "approved_permissions": ["ui_settings", "ui_modals", "ui_context_menu", "ui_notifications", "fs_read", "fs_write", "ui_session_decorator"]
+    },
+    {
+      "repository": "arediss/simplyterm-recent",
+      "approved_permissions": ["events_subscribe", "sessions_connect", "ui_sidebar", "ui_settings", "ui_quick_connect", "ui_notifications", "ui_modals", "fs_read", "fs_write", "ui_home_panel"]
+    },
+    {
+      "repository": "arediss/simplyterm-folders",
+      "approved_permissions": ["ui_sidebar", "ui_context_menu", "ui_notifications", "ui_modals", "fs_read", "fs_write", "ui_home_panel"]
     }
   ]
 }
