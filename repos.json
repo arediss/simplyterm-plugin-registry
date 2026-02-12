@@ -2,7 +2,7 @@
   "plugins": [
     {
       "repository": "arediss/simplyterm-plugin-hello",
-      "approved_permissions": ["ui_notifications"]
+      "approved_permissions": ["ui_notifications", "ui_commands", "sessions_read"]
     },
     {
       "repository": "arediss/simplyterm-tags",
