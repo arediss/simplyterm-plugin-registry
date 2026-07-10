@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-12T11:33:47Z",
+  "updatedAt": "2026-07-10T09:29:02Z",
   "plugins": [
     {
       "id": "com.simplyterm.hello-world",
@@ -23,9 +23,9 @@
         "ui_commands",
         "sessions_read"
       ],
-      "downloadUrl": "https://github.com/arediss/simplyterm-plugin-hello/releases/download/v1.1.1/plugin.zip",
+      "downloadUrl": "https://github.com/Arediss/simplyterm-plugin-hello/releases/download/v1.1.1/plugin.zip",
       "checksum": "f97095e119dfe5acf07090e52a23f9668204f7a05d6357382f8ae4853ddcce98",
-      "downloads": 22
+      "downloads": 171
     },
     {
       "id": "com.simplyterm.tags",
@@ -53,9 +53,9 @@
         "fs_write",
         "ui_session_decorator"
       ],
-      "downloadUrl": "https://github.com/arediss/simplyterm-tags/releases/download/v1.0.0/plugin.zip",
+      "downloadUrl": "https://github.com/Arediss/simplyterm-tags/releases/download/v1.0.0/plugin.zip",
       "checksum": "3429760d12b98de4b73707b4e25a092dc4be671e1e342292307a2cb1578f3f38",
-      "downloads": 0
+      "downloads": 153
     },
     {
       "id": "com.simplyterm.recent",
@@ -86,9 +86,9 @@
         "fs_write",
         "ui_home_panel"
       ],
-      "downloadUrl": "https://github.com/arediss/simplyterm-recent/releases/download/v1.0.0/plugin.zip",
+      "downloadUrl": "https://github.com/Arediss/simplyterm-recent/releases/download/v1.0.0/plugin.zip",
       "checksum": "d906b1b9057e9e51765d8b7b066d89497cc5de739c4aebbd182a4b10c9f68752",
-      "downloads": 0
+      "downloads": 142
     },
     {
       "id": "com.simplyterm.folders",
@@ -116,9 +116,9 @@
         "fs_write",
         "ui_home_panel"
       ],
-      "downloadUrl": "https://github.com/arediss/simplyterm-folders/releases/download/v1.0.0/plugin.zip",
+      "downloadUrl": "https://github.com/Arediss/simplyterm-folders/releases/download/v1.0.0/plugin.zip",
       "checksum": "89ea3a6983a74d99cbb9ebf391f5cad27b82342361a1ec6fbc60699d122c5427",
-      "downloads": 0
+      "downloads": 145
     }
   ]
 }
